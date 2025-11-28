@@ -1,6 +1,36 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { pool } from "./db";
+import bcrypt from "bcrypt";
+
+// Auto-create admin user on startup if not exists
+async function initializeAdmin() {
+  try {
+    const client = await pool.connect();
+    try {
+      const checkResult = await client.query('SELECT id FROM users WHERE username = $1', ['admin']);
+      
+      if (checkResult.rowCount === 0) {
+        // Hash password 'admin123'
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        
+        await client.query(
+          'INSERT INTO users (username, password, email, mobile, role, balance) VALUES ($1, $2, $3, $4, $5, $6)',
+          ['admin', hashedPassword, 'admin@kinggames.com', '9999999999', 'admin', 0]
+        );
+        
+        log('✅ Admin user created successfully (username: admin, password: admin123)');
+      } else {
+        log('ℹ️  Admin user already exists');
+      }
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    log('⚠️  Could not initialize admin user:', error);
+  }
+}
 
 const app = express();
 app.use(express.json());
@@ -42,6 +72,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize admin user on startup
+  await initializeAdmin();
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
