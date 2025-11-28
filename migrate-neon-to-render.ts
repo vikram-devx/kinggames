@@ -1,21 +1,25 @@
 /**
  * ONE-TIME DATA MIGRATION SCRIPT
- * Copies data from Neon database to Render Postgres
- * 
- * INSTRUCTIONS:
- * 1. Run this script once via: npm run migrate-data
- * 2. Verify data was copied successfully
- * 3. Delete this file manually after successful migration
+ * Automatically runs once and deletes itself after successful migration
  */
 import pkg from 'pg';
+import fs from 'fs';
+import path from 'path';
 const { Pool } = pkg;
 
 const NEON_CONNECTION = 'postgresql://neondb_owner:npg_0V1TaZlMieFf@ep-super-hill-aejxhohw-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require';
 const RENDER_CONNECTION = process.env.DATABASE_URL;
+const MIGRATION_FLAG_FILE = './migration-completed.flag';
 
 if (!RENDER_CONNECTION) {
   console.error('❌ DATABASE_URL not set');
   process.exit(1);
+}
+
+// Check if migration already ran
+if (fs.existsSync(MIGRATION_FLAG_FILE)) {
+  console.log('✅ Migration already completed. Skipping...');
+  process.exit(0);
 }
 
 async function migrateData() {
@@ -102,7 +106,10 @@ async function migrateData() {
     console.log(`🎉 Migration completed successfully!`);
     console.log(`📊 Total rows copied: ${totalRowsCopied}`);
     console.log('═══════════════════════════════════════\n');
-    console.log('⚠️  IMPORTANT: Delete this script file after verifying data!');
+    
+    // Create flag file to prevent re-running
+    fs.writeFileSync(MIGRATION_FLAG_FILE, new Date().toISOString());
+    console.log('✅ Migration flag created. This script will not run again.');
 
   } catch (error) {
     console.error('❌ Error during migration:', error);
